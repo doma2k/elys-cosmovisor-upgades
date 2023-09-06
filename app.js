@@ -1,6 +1,8 @@
 const axios = require('axios');
-const fs = require('fs');
-const { execSync } = require('child_process');
+const fs = require('fs').promises; // Use fs.promises for async file operations
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 const config = require('./config');
 
 async function getLatestRelease() {
@@ -11,37 +13,45 @@ async function getLatestRelease() {
         return version.tag_name;
     } catch (error) {
         console.error("Error fetching latest release:", error);
-        process.exit(1); 
+        process.exit(1);
     }
 }
 
-function createDirectoryForVersion(version) {
+async function createDirectoryForVersion(version) {
     const newVersionPath = `${config.UPGRADES_PATH}/${version}/bin/`;
-    fs.mkdirSync(newVersionPath, { recursive: true });
-    console.log(`Created new directory: ${newVersionPath}`);
-    return newVersionPath;
+    try {
+        await fs.mkdir(newVersionPath, { recursive: true });
+        console.log(`Created new directory: ${newVersionPath}`);
+        return newVersionPath;
+    } catch (error) {
+        console.error("Error creating directory:", error);
+    }
 }
 
-function buildNewVersion(version, newVersionPath) {
+async function buildNewVersion(version, newVersionPath) {
     try {
         console.log("Building new version...");
-        execSync(`cd ${process.env.HOME}/elys && git clean -fd && git reset --hard && git fetch --all && git checkout ${version} && make install && mv ${process.env.HOME}/go/bin/${config.BINARY_NAME} ${newVersionPath}`, { stdio: 'inherit' });
-        console.log("Build complete.");
+        const { stdout, stderr } = await execAsync(`cd ${process.env.HOME}/elys && git clean -fd && git reset --hard && git fetch --all && git checkout ${version} && make install && mv ${process.env.HOME}/go/bin/${config.BINARY_NAME} ${newVersionPath}`);
+        console.log("Build complete:", stdout);
     } catch (error) {
-        console.error("Error during build:", error);
+        console.error("Error during build:", error.stderr);
     }
 }
 
 async function main() {
-    const version = await getLatestRelease();
-    const directories = fs.readdirSync(config.UPGRADES_PATH);
+    try {
+        const version = await getLatestRelease();
+        const directories = await fs.readdir(config.UPGRADES_PATH);
 
-    if (!directories.includes(version)) {
-        console.log(`New version found: ${version}`);
-        const newVersionPath = createDirectoryForVersion(version);
-        buildNewVersion(version, newVersionPath);
-    } else {
-        console.log("No new version found.");
+        if (!directories.includes(version)) {
+            console.log(`New version found: ${version}`);
+            const newVersionPath = await createDirectoryForVersion(version);
+            await buildNewVersion(version, newVersionPath);
+        } else {
+            console.log("No new version found.");
+        }
+    } catch (error) {
+        console.error("An error occurred:", error);
     }
 }
 
