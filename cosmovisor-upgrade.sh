@@ -9,7 +9,6 @@ ELYSD_DIRECTORY="$HOME/elys"  # Use $HOME for the home directory
 get_latest_release() {
     local version
     version=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases" | jq -r '.[0].tag_name')
-    echo "Latest binary: $version"
     echo "$version"
 }
 
