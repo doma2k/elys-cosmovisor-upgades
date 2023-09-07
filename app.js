@@ -1,4 +1,4 @@
-process.env.PATH = '/usr/local/go/bin:' + process.env.PATH;
+process.env.PATH = '/usr/local/go/bin:/root/go/bin:' + process.env.PATH;
 
 const axios = require('axios');
 const fs = require('fs').promises; // Use fs.promises for async file operations
