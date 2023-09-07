@@ -31,7 +31,7 @@ async function createDirectoryForVersion(version) {
 async function buildNewVersion(version, newVersionPath) {
     try {
         console.log("Building new version...");
-        const { stdout, stderr } = await execAsync(`cd ${process.env.HOME}/elys && git clean -fd && git reset --hard && git fetch --all && git checkout ${version} && make install && mv ${process.env.HOME}/go/bin/${config.BINARY_NAME} ${newVersionPath}`);
+        const { stdout, stderr } = await execAsync(`cd /root/elys && git clean -fd && git reset --hard && git fetch --all && git checkout ${version} && make install && mv /root/go/bin/${config.BINARY_NAME} ${newVersionPath}`);
         console.log("Build complete:", stdout);
     } catch (error) {
         console.error("Error during build:", error.stderr);
