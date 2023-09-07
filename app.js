@@ -1,3 +1,5 @@
+process.env.PATH = '/usr/local/go/bin:' + process.env.PATH;
+
 const axios = require('axios');
 const fs = require('fs').promises; // Use fs.promises for async file operations
 const { exec } = require('child_process');
@@ -31,7 +33,7 @@ async function createDirectoryForVersion(version) {
 async function buildNewVersion(version, newVersionPath) {
     try {
         console.log("Building new version...");
-        const { stdout, stderr } = await execAsync(`cd /root/elys && git clean -fd && git reset --hard && git fetch --all && git checkout ${version} && /usr/bin/make install && mv /root/go/bin/${config.BINARY_NAME} ${newVersionPath}`);
+        const { stdout, stderr } = await execAsync(`cd /root/elys && git clean -fd && git reset --hard && git fetch --all && git checkout ${version} && make install && mv /root/go/bin/${config.BINARY_NAME} ${newVersionPath}`);
         console.log("Build complete:", stdout);
     } catch (error) {
         console.error("Error during build:", error.stderr);
