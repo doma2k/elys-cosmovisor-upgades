@@ -1,47 +1,49 @@
 #!/bin/bash
 
 # Configuration
-RPC_URL="http://127.0.0.1:11111" # RPC URL
+RPC_URL="http://127.0.0.1:46018" # RPC URL
 API_URL="https://api.testnet.elys.network" # API URL
-USER="111111" # User ID
-PASSWORD="1111111"
+USER="11111" # User ID
+PASSWORD="11111111"
 VOTED_PROPOSALS_FILE="$HOME/voted_proposals.txt"
 GITHUB_REPO="elys-network/elys"
 UPGRADES_PATH="$HOME/.elys/cosmovisor/upgrades"  # Use $HOME for the home directory 
-BINARY_NAME="elysd"
+BINARY_NAME="elysd" 
 ELYSD_DIRECTORY="$HOME/elys"  # Use $HOME for the home directory
 
 check_and_vote_proposal() {
-    local proposal_id="$1"
-    local type
-    local id
-    local status
-
-    if [ ! -f "$VOTED_PROPOSALS_FILE" ]; then
-        touch "$VOTED_PROPOSALS_FILE"
-        echo "$VOTED_PROPOSALS_FILE created"
-    fi
+    local ID
+    local TYPE
+    local STATUS
 
     # Check if the proposal ID is in the user's record of voted proposals
-    if grep -Fxq "$proposal_id" "$VOTED_PROPOSALS_FILE"; then
+    if grep -Fxq "$ID" "$VOTED_PROPOSALS_FILE"; then
         echo "You have already voted on this proposal."
     else
         local proposal_info
-        proposal_info=$(curl -sX GET "$API_URL/cosmos/gov/v1/proposals/$proposal_id" -H "accept: application/json")
+        proposal_info=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json")
 
-        type=$(echo "$proposal_info" | jq -r '.proposal.messages[0].content."@type"')
-        status=$(echo "$proposal_info" | jq -r '.proposal.status')
+        TYPE=$(echo "$proposal_info" | jq -r '.proposal[-1].messages[0].content."@type"')
+        STATUS=$(echo "$proposal_info" | jq -r '.proposal[-1].status')
+        ID=$(echo "$proposal_info" | jq -r '.proposal[-1].id')
 
-        if [ "${type}" == "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" ] && [ "${status}" == "PROPOSAL_STATUS_VOTING_PERIOD" ]; then
-            $BINARY_NAME tx gov vote "$proposal_id" yes --from "$USER" --node "$RPC_URL" -y
+        if [ "${TYPE}" == "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" ] && [ "${STATUS}" == "PROPOSAL_STATUS_VOTING_PERIOD" ]; then
+            $BINARY_NAME tx gov vote "$ID" yes --from "$USER" --node "$RPC_URL" -y
             if [ $? -eq 0 ]; then
-                echo "Successfully voted on proposal $proposal_id."
-                echo "$proposal_id" >> "$VOTED_PROPOSALS_FILE"
+                echo "Successfully voted on proposal $ID."
+                if [ ! -f "$VOTED_PROPOSALS_FILE" ]; then
+                    touch "$VOTED_PROPOSALS_FILE"
+                    echo "$VOTED_PROPOSALS_FILE created"
+                fi
+                echo "$ID" >> "$VOTED_PROPOSALS_FILE"
+                result=0
             else
-                echo "Error occurred while voting on proposal $proposal_id."
+                echo "Error occurred while voting on proposal $ID."
+                result=1
             fi
         else
             echo "No active proposals or the proposal does not meet the criteria."
+            result=1
         fi
     fi
     sleep 2
@@ -49,7 +51,7 @@ check_and_vote_proposal() {
 
 get_latest_release() {
     local version
-    version=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases" | jq -r '.[0].tag_name')
+    version=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq '.proposals[-1].messages[0].content' | jq .plan.name)
     echo "$version"
 }
 
@@ -92,19 +94,22 @@ build_new_version() {
 }
 
 main() {
-    vote_update_proposal
-    local version
-    version=$(get_latest_release)
-    directories=("$UPGRADES_PATH"/*)
+    if check_and_vote_proposal; then
+        local version
+        version=$(get_latest_release)
+        directories=("$UPGRADES_PATH"/*)
 
-    download_repository_if_not_exists
+        download_repository_if_not_exists
 
-    if ! [[ " ${directories[@]} " =~ " $UPGRADES_PATH/$version " ]]; then
-        echo "New version found: $version"
-        new_version_path=$(create_directory_for_version "$version")
-        build_new_version "$version" "$new_version_path"
+        if ! [[ " ${directories[@]} " =~ " $UPGRADES_PATH/$version " ]]; then
+            echo "New version found: $version"
+            new_version_path=$(create_directory_for_version "$version")
+            build_new_version "$version" "$new_version_path"
+        else
+            echo "No new version found."
+        fi
     else
-        echo "No new version found."
+        echo "Voting on the proposal failed."
     fi
 }
 
