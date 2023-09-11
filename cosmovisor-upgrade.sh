@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Elys-Network Automation Script
+# This script was created to automate voting and upgrade for Elys-Network.
+# It checks if the latest proposal is upgrade-related and has VOTING_PERIOD status.
+# If "yes," it votes for this proposal and saves its "id" to a file (this part is temporary till I test the API option).
+# Then it scrapes the binary version from the proposal "Plan" object and builds it. (also considering to download binary using proposal info instead of building)
+# Creates a related folder in .elsy/cosmovisor and copies the new binary.
+
 # Configuration
 RPC_URL="http://127.0.0.1:46018" # RPC URL
 API_URL="https://api.testnet.elys.network" # API URL
@@ -106,7 +113,7 @@ main() {
             new_version_path=$(create_directory_for_version "$version")
             build_new_version "$version" "$new_version_path"
         else
-            echo "No new version found."
+            echo "No new version found or already exist"
         fi
     else
         echo "Voting on the proposal failed."
