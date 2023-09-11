@@ -3,7 +3,7 @@
 # Elys-Network Automation Script
 # This script was created to automate voting and upgrade for Elys-Network.
 # It checks if the latest proposal is upgrade-related and has VOTING_PERIOD status.
-# If "yes," it votes for this proposal and saves its "id" to a file (this part is temporary till I test the API option).
+# If yes, it votes for this proposal and saves its id to a file (this part is temporary till I test the API option).
 # Then it scrapes the binary version from the proposal "Plan" object and builds it. (also considering to download binary using proposal info instead of building)
 # Creates a related folder in .elsy/cosmovisor and copies the new binary.
 
@@ -11,7 +11,7 @@
 RPC_URL="http://127.0.0.1:46018" # RPC URL
 API_URL="https://api.testnet.elys.network" # API URL
 USER="11111" # User ID
-PASSWORD="11111111"
+PASSWORD="111111111"
 VOTED_PROPOSALS_FILE="$HOME/voted_proposals.txt"
 GITHUB_REPO="elys-network/elys"
 UPGRADES_PATH="$HOME/.elys/cosmovisor/upgrades"  # Use $HOME for the home directory 
@@ -22,6 +22,7 @@ check_and_vote_proposal() {
     local ID
     local TYPE
     local STATUS
+    local result=1  # Default to 1 (failure)
 
     # Check if the proposal ID is in the user's record of voted proposals
     if grep -Fxq "$ID" "$VOTED_PROPOSALS_FILE"; then
@@ -43,18 +44,18 @@ check_and_vote_proposal() {
                     echo "$VOTED_PROPOSALS_FILE created"
                 fi
                 echo "$ID" >> "$VOTED_PROPOSALS_FILE"
-                result=0
+                result=0  # Set result to 0 (success) on successful vote
             else
                 echo "Error occurred while voting on proposal $ID."
-                result=1
             fi
         else
             echo "No active proposals or the proposal does not meet the criteria."
-            result=1
         fi
     fi
     sleep 2
+    return $result  # Return the result (0 for success, 1 for failure)
 }
+
 
 get_latest_release() {
     local version
@@ -82,6 +83,14 @@ download_repository_if_not_exists() {
 build_new_version() {
     local version="$1"
     local new_version_path="$2"
+
+    if [ -z "$version" ] || [ "$version" == "null" ]; then
+        echo "No valid version found. Skipping the build."
+        exit 1
+    fi
+
+    download_repository_if_not_exists
+
     echo "Building new version..."
     (
         cd "$ELYSD_DIRECTORY" || exit 1
@@ -97,26 +106,27 @@ build_new_version() {
     else
         echo "Error during build:"
         cat build.log
+        exit 1
     fi
 }
 
 main() {
     if check_and_vote_proposal; then
+        # Check if a successful vote occurred
         local version
         version=$(get_latest_release)
         directories=("$UPGRADES_PATH"/*)
 
-        download_repository_if_not_exists
-
         if ! [[ " ${directories[@]} " =~ " $UPGRADES_PATH/$version " ]]; then
-            echo "New version found: $version"
             new_version_path=$(create_directory_for_version "$version")
             build_new_version "$version" "$new_version_path"
+            echo "New version initiated: $version"
+
         else
-            echo "No new version found or already exist"
+            echo "No new version found or already exists"
         fi
     else
-        echo "Voting on the proposal failed."
+        echo "Nothing to upgrade, going to sleep."
     fi
 }
 
