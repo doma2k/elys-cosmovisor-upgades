@@ -3,31 +3,52 @@
 # Configuration
 RPC_URL="http://127.0.0.1:46018"
 API_URL="https://api.testnet.elys.network" # API url
-USER="" # User ID
+USER="doma" # User ID
+PASSWORD="123123qwe"
+VOTED_PROPOSALS_FILE="$HOME/voted_proposals.txt"
 GITHUB_REPO="elys-network/elys"
 UPGRADES_PATH="$HOME/path/to/your/upgrades"  # Use $HOME for the home directory
 BINARY_NAME="elysd"
 ELYSD_DIRECTORY="$HOME/elys"  # Use $HOME for the home directory
 
+initialize_voted_proposals_file() {
+    touch "$VOTED_PROPOSALS_FILE"
+}
 
-vote_update_proposal() {
-    # If type of proposal is "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal"
-    # If Status is PROPOSAL_STATUS_VOTING_PERIOD
-    # If $USER not voter
-    # Then vote 
+check_and_vote_proposal() {
+    local proposal_id="$1"
     local type
     local id
-    local status 
+    local status
 
-    id=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq '.proposals[-1].id')
-    type=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq -r '.proposals[-1].messages[0].content."@type"')
-    status=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq -r '.proposals[-1].status')
-
-    if [ "${type}" == "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" ] && [ "${status}" == "PROPOSAL_STATUS_VOTING_PERIOD" ]; then
-        $BINARY_NAME tx gov vote $id yes --from $USER --node $RPC_URL -y
-    else
-        echo "No active proposals."
+    if [ ! -f "$VOTED_PROPOSALS_FILE" ]; then
+        echo "$VOTED_PROPOSALS_FILE created"
+        initialize_voted_proposals_file
     fi
+
+    # Check if the proposal ID is in the user's record of voted proposals
+    if grep -Fxq "$proposal_id" "$VOTED_PROPOSALS_FILE"; then
+        echo "You have already voted on this proposal."
+    else
+        local proposal_info
+        proposal_info=$(curl -sX GET "$API_URL/cosmos/gov/v1/proposals/$proposal_id" -H "accept: application/json")
+
+        type=$(echo "$proposal_info" | jq -r '.proposal.messages[0].content."@type"')
+        status=$(echo "$proposal_info" | jq -r '.proposal.status')
+
+        if [ "${type}" == "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" ] && [ "${status}" == "PROPOSAL_STATUS_VOTING_PERIOD" ]; then
+            $BINARY_NAME tx gov vote "$proposal_id" yes --from "$USER" --node "$RPC_URL" -y
+            if [ $? -eq 0 ]; then
+                echo "Successfully voted on proposal $proposal_id."
+                echo "$proposal_id" >> "$VOTED_PROPOSALS_FILE"
+            else
+                echo "Error occurred while voting on proposal $proposal_id."
+            fi
+        else
+            echo "No active proposals or the proposal does not meet the criteria."
+        fi
+    fi
+    sleep 2
 }
 
 get_latest_release() {
@@ -75,6 +96,7 @@ build_new_version() {
 }
 
 main() {
+    vote_update_proposal
     local version
     version=$(get_latest_release)
     directories=("$UPGRADES_PATH"/*)
