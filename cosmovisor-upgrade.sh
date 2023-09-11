@@ -1,19 +1,15 @@
 #!/bin/bash
 
 # Configuration
-RPC_URL="http://127.0.0.1:46018"
-API_URL="https://api.testnet.elys.network" # API url
-USER="doma" # User ID
-PASSWORD="123123qwe"
+RPC_URL="http://127.0.0.1:11111" # RPC URL
+API_URL="https://api.testnet.elys.network" # API URL
+USER="111111" # User ID
+PASSWORD="1111111"
 VOTED_PROPOSALS_FILE="$HOME/voted_proposals.txt"
 GITHUB_REPO="elys-network/elys"
-UPGRADES_PATH="$HOME/path/to/your/upgrades"  # Use $HOME for the home directory
+UPGRADES_PATH="$HOME/.elys/cosmovisor/upgrades"  # Use $HOME for the home directory 
 BINARY_NAME="elysd"
 ELYSD_DIRECTORY="$HOME/elys"  # Use $HOME for the home directory
-
-initialize_voted_proposals_file() {
-    touch "$VOTED_PROPOSALS_FILE"
-}
 
 check_and_vote_proposal() {
     local proposal_id="$1"
@@ -22,8 +18,8 @@ check_and_vote_proposal() {
     local status
 
     if [ ! -f "$VOTED_PROPOSALS_FILE" ]; then
+        touch "$VOTED_PROPOSALS_FILE"
         echo "$VOTED_PROPOSALS_FILE created"
-        initialize_voted_proposals_file
     fi
 
     # Check if the proposal ID is in the user's record of voted proposals
