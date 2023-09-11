@@ -1,10 +1,34 @@
 #!/bin/bash
 
 # Configuration
+RPC_URL="http://127.0.0.1:46018"
+API_URL="https://api.testnet.elys.network" # API url
+USER="" # User ID
 GITHUB_REPO="elys-network/elys"
 UPGRADES_PATH="$HOME/path/to/your/upgrades"  # Use $HOME for the home directory
 BINARY_NAME="elysd"
 ELYSD_DIRECTORY="$HOME/elys"  # Use $HOME for the home directory
+
+
+vote_update_proposal() {
+    # If type of proposal is "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal"
+    # If Status is PROPOSAL_STATUS_VOTING_PERIOD
+    # If $USER not voter
+    # Then vote 
+    local type
+    local id
+    local status 
+
+    id=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq '.proposals[-1].id')
+    type=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq -r '.proposals[-1].messages[0].content."@type"')
+    status=$(curl -X GET "$API_URL/cosmos/gov/v1/proposals?proposal_status=PROPOSAL_STATUS_UNSPECIFIED&pagination.count_total=true" -H "accept: application/json" | jq -r '.proposals[-1].status')
+
+    if [ "${type}" == "/cosmos.upgrade.v1beta1.SoftwareUpgradeProposal" ] && [ "${status}" == "PROPOSAL_STATUS_VOTING_PERIOD" ]; then
+        $BINARY_NAME tx gov vote $id yes --from $USER --node $RPC_URL -y
+    else
+        echo "No active proposals."
+    fi
+}
 
 get_latest_release() {
     local version
@@ -40,7 +64,7 @@ build_new_version() {
         git fetch --all
         git checkout "$version"
         make install
-        mv "$HOME/go/bin/$BINARY_NAME" "$new_version_path"  # Use $HOME for the home directory
+        cp "$HOME/go/bin/$BINARY_NAME" "$new_version_path"  # Use $HOME for the home directory
     ) &> build.log
     if [ $? -eq 0 ]; then
         echo "Build complete"
